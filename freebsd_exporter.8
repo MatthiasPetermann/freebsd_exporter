@@ -1,0 +1,49 @@
+.Dd May 26, 2023
+.Dt NETBSD_EXPORTER 8
+.Os
+.Sh NAME
+.Nm netbsd_exporter
+.Nd system metrics exporter for Prometheus
+.Sh SYNOPSIS
+.Nm netbsd_exporter
+.Op Fl Fl no-http-header
+.Op Fl Fl no-syslog
+.Op Fl Fl version
+.Sh DESCRIPTION
+.Nm
+is a Prometheus compatible exporter for system metrics such as disk I/O,
+network I/O, RAM and filesystem usage, as well as CPU load.
+It is designed to be lightweight and
+.Nx Ns No -focused .
+.Pp
+.Nm
+can be served by
+.Xr inetd 8
+to allow Prometheus to scrape the metrics with the same interface as
+the node_exporter provides.
+Hence by default, metrics are printed out to stdout with a minimal
+HTTP header preceded.
+.Pp
+The following options are available:
+.Bl -tag -width indent
+.It Fl Fl no-http-header
+Disable HTTP header in output
+.It Fl Fl no-syslog
+Send diagnostic output and error messages to stderr instead of
+.Xr syslogd 8
+.It Fl Fl version
+Print the version information
+.El
+.Sh EXIT STATUS
+.Ex -std
+.Sh AUTHORS
+.Nm
+was written by
+.An Matthias Petermann
+.Aq mp@petermann-it.de .
+.Sh BUGS
+.Nm
+currently does not parse stdin.
+This means that it outputs metrics independently of the received HTTP
+request verb and URL via
+.Xr inetd 8 .
