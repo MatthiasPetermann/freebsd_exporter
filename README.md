@@ -1,12 +1,46 @@
-# freebsd_exporter
+# Introduction
 
 The freebsd_exporter retrieves system metrics such as disk I/O, network I/O,
 RAM and filesystem usage, as well as CPU load from the running system and
 exposes them in the format of Prometheus metrics. It is designed to be
 integrated into inetd, providing a lightweight, FreeBSD-focused alternative
-to the node_exporter.
+to the node_exporter. It can serve as a complement or replacement for 
+prometheus_sysctl_exporter, as it primarily focuses on general performance
+characteristics at a high level.
 
-# example
+# Usage
+
+## Installation
+
+```
+$ fetch https://forge.petermann-it.de/mpeterma/freebsd_exporter/archive/0.9.0.tar.gz
+$ mv 0.9.0.tar.gz freebsd_exporter-0.9.0.tar.gz
+$ tar xvfz freebsd_exporter-0.9.0.tar.gz
+$ cd freebsd_exporter
+$ make
+$ doas make install
+```
+
+## Configuration
+
+```
+$ doas vi /etc/services
+
+    freebsd_exporter 9100/tcp
+
+$ doas services_mkdb
+$ doas vi /etc/inetd.conf
+
+    freebsd_exporter stream  tcp     nowait:600      nobody  /usr/libexec/freebsd_exporter    freebsd_exporter
+
+$ doas service inetd restart
+```
+
+## Test
+
+ - Point Browser to: http://localhost:9100/metrics
+
+# Example
 
 ```
 HTTP/1.1 200 OK
@@ -157,3 +191,9 @@ freebsd_device_write_bytes{device="pass7"} 0
 freebsd_device_read_bytes{device="pass8"} 291
 freebsd_device_write_bytes{device="pass8"} 0
 ```
+
+# Credits
+
+For parts of the code, such as handling sysctls and accessing devstat, 
+implementations from the FreeBSD base system served as inspiration and a
+template. In particular, the tools iostat and top were used as references.
