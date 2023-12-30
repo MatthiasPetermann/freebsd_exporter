@@ -49,15 +49,22 @@
 #include <sys/disk.h>
 #include <syslog.h>
 #include <unistd.h>
-//#include <uvm/uvm_extern.h>
 #include <getopt.h>
 
 #include <devstat.h>
 #include <inttypes.h>
 #include <fcntl.h>
+#include <paths.h>
 
 #include "freebsd_exporter.h"
 #include "version.h"
+
+#define GETSYSCTL(name, var) getsysctl(name, &(var), sizeof(var))
+
+static void getsysctl(const char *name, void *ptr, size_t len);
+static int swapmode(int *retavail, int *retfree);
+
+static kvm_t *kd;
 
 void print_filesystem_metric(const char* metric, const char* device, const char* type, const char* mountpoint, long value) {
     printf("freebsd_fs_%s_bytes{device=\"%s\",type=\"%s\",mountpoint=\"%s\"} %ld\n", metric, device, type, mountpoint, value);
@@ -134,29 +141,90 @@ void retrieve_network_interface_metrics() {
     }
 }
 
-//void retrieve_memory_metrics() {
-    //int pagesize;
-    //struct uvmexp_sysctl u;
+static void
+getsysctl(const char *name, void *ptr, size_t len)
+{
+	size_t nlen = len;
 
-    //// getpagesize() is obsolete, see manpage
-    //pagesize = sysconf(_SC_PAGESIZE);
-    //int mib[2];
-    //size_t size = sizeof(struct uvmexp_sysctl);
-    //mib[0] = CTL_VM;
-    //mib[1] = VM_UVMEXP2;
-    //if (sysctl(mib, 2, &u, &size, NULL, 0) == -1) {
-        //log_message(LOG_ERR, "sysctl failed.");
-        //return;
-    //}
-    //print_memory_metric("size", u.npages * pagesize);
-    //print_memory_metric("free", u.free * pagesize);
-    //print_memory_metric("active", u.active * pagesize);
-    //print_memory_metric("inactive", u.inactive * pagesize);
-    //print_memory_metric("paging", u.paging * pagesize);
-    //print_memory_metric("wired", u.wired * pagesize);
-    //print_memory_metric("swap_size", u.swpages * pagesize);
-    //print_memory_metric("swap_used", u.swpginuse * pagesize);
-//}
+	if (sysctlbyname(name, ptr, &nlen, NULL, 0) == -1) {
+		log_message(LOG_ERR, "Sysctl failed.");
+		return;
+	}
+	if (nlen != len) {
+		log_message(LOG_ERR, "Value length invalid.");
+		return;
+	}
+}
+
+
+static int
+swapmode(int *retavail, int *retfree)
+{
+	int n;
+	struct kvm_swap swapary[1];
+	static int pagesize = 0;
+	static unsigned long swap_maxpages = 0;
+
+	*retavail = 0;
+	*retfree = 0;
+
+#define CONVERT(v)	((quad_t)(v) * pagesize / 1024)
+
+	n = kvm_getswapinfo(kd, swapary, 1, 0);
+	if (n < 0 || swapary[0].ksw_total == 0)
+		return (0);
+
+	if (pagesize == 0)
+		pagesize = getpagesize();
+	if (swap_maxpages == 0)
+		GETSYSCTL("vm.swap_maxpages", swap_maxpages);
+
+	/* ksw_total contains the total size of swap all devices which may
+	   exceed the maximum swap size allocatable in the system */
+	if ( swapary[0].ksw_total > swap_maxpages )
+		swapary[0].ksw_total = swap_maxpages;
+
+	*retavail = CONVERT(swapary[0].ksw_total);
+	*retfree = CONVERT(swapary[0].ksw_total - swapary[0].ksw_used);
+
+#undef CONVERT
+
+	n = (int)(swapary[0].ksw_used * 100.0 / swapary[0].ksw_total);
+	return (n);
+}
+
+void retrieve_memory_metrics() {
+    int pagesize;
+    static int swapavail = 0;
+	static int swapfree = 0;
+	static long bufspace = 0;
+	static uint64_t page_count;
+	static uint64_t active_count;
+	static uint64_t inactive_count;
+	static uint64_t laundry_count;
+	static uint64_t wire_count;
+	static uint64_t free_count;
+    
+    pagesize = getpagesize();
+    GETSYSCTL("vfs.bufspace", bufspace);
+    GETSYSCTL("vm.stats.vm.v_page_count", page_count);
+    GETSYSCTL("vm.stats.vm.v_active_count", active_count);
+    GETSYSCTL("vm.stats.vm.v_inactive_count", inactive_count);
+    GETSYSCTL("vm.stats.vm.v_laundry_count", laundry_count);
+    GETSYSCTL("vm.stats.vm.v_wire_count", wire_count);
+    GETSYSCTL("vm.stats.vm.v_free_count", free_count);    
+	swapmode(&swapavail, &swapfree);
+    
+    print_memory_metric("bufspace", bufspace);
+    print_memory_metric("size", page_count * pagesize);
+    print_memory_metric("active", active_count * pagesize);
+    print_memory_metric("inactive", inactive_count * pagesize);
+    print_memory_metric("laundry", laundry_count * pagesize);
+    print_memory_metric("wire", wire_count * pagesize);
+    print_memory_metric("free", free_count * pagesize);
+    print_memory_metric("swap_size", swapavail);
+    print_memory_metric("swap_used", swapavail-swapfree);
+}
 
 void retrieve_disk_io_metrics() {
     struct statinfo cur;
@@ -298,11 +366,17 @@ int main(int argc, char *argv[]) {
         printf("HTTP/1.1 200 OK\r\n");
         printf("Content-Type: text/plain\r\n\r\n");
     }
+    
+    kd = kvm_open(NULL, _PATH_DEVNULL, NULL, O_RDONLY, "kvm_open");
+	if (kd == NULL) {
+		log_message(LOG_ERR, "Could not open kernel memory file.");
+		return (-1);
+	}
 
     retrieve_disk_space_metrics();
     retrieve_cpu_load_metrics();
     retrieve_network_interface_metrics();
-    //retrieve_memory_metrics();
+    retrieve_memory_metrics();
     retrieve_disk_io_metrics();
 
     if(option_syslog) {

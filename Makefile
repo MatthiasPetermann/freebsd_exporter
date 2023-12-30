@@ -7,7 +7,7 @@ PACKAGE=$(TARGET)-$(VERSION).tar.gz
 all: $(TARGET)
 
 $(TARGET): freebsd_exporter.c
-	$(CC) $(CFLAGS) -ldevstat -o $@ $<
+	$(CC) $(CFLAGS) -ldevstat -lkvm -o $@ $<
 
 clean:
 	rm -f $(TARGET)
