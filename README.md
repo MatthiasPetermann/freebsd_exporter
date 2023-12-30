@@ -134,7 +134,7 @@ freebsd_mem_size_bytes 32944029696
 freebsd_mem_active_bytes 1513656320
 freebsd_mem_inactive_bytes 5786017792
 freebsd_mem_laundry_bytes 458391552
-freebsd_mem_wire_bytes 3690967040
+freebsd_mem_wired_bytes 3690967040
 freebsd_mem_free_bytes 21445959680
 freebsd_mem_swap_size_bytes 16777088
 freebsd_mem_swap_used_bytes 0
