@@ -220,7 +220,7 @@ void retrieve_memory_metrics() {
     print_memory_metric("active", active_count * pagesize);
     print_memory_metric("inactive", inactive_count * pagesize);
     print_memory_metric("laundry", laundry_count * pagesize);
-    print_memory_metric("wire", wire_count * pagesize);
+    print_memory_metric("wired", wire_count * pagesize);
     print_memory_metric("free", free_count * pagesize);
     print_memory_metric("swap_size", swapavail);
     print_memory_metric("swap_used", swapavail-swapfree);
