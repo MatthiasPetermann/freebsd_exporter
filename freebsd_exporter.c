@@ -53,9 +53,8 @@
 #include <getopt.h>
 
 #include <devstat.h>
+#include <inttypes.h>
 #include <fcntl.h>
-#include <libgeom.h>
-#include <limits.h>
 
 #include "freebsd_exporter.h"
 #include "version.h"
@@ -64,9 +63,9 @@ void print_filesystem_metric(const char* metric, const char* device, const char*
     printf("freebsd_fs_%s_bytes{device=\"%s\",type=\"%s\",mountpoint=\"%s\"} %ld\n", metric, device, type, mountpoint, value);
 }
 
-void print_disk_io_metric(const char* device, long long unsigned int rbytes, long long unsigned int wbytes) {
-    printf("freebsd_dk_read_bytes{device=\"%s\"} %llu\n", device, rbytes);
-    printf("freebsd_dk_write_bytes{device=\"%s\"} %llu\n", device, wbytes);
+void print_disk_io_metric(const char* device, u_int64_t rbytes, u_int64_t wbytes) {
+    printf("freebsd_device_read_bytes{device=\"%s\"} %" PRIu64 "\n", device, rbytes);
+    printf("freebsd_device_write_bytes{device=\"%s\"} %" PRIu64 "\n", device, wbytes);
 }
 
 void print_load_metric(const char* metric, double value) {
@@ -160,8 +159,80 @@ void retrieve_network_interface_metrics() {
 //}
 
 void retrieve_disk_io_metrics() {
-   
+    struct statinfo cur;
+	int num_devices, dn;
+  
+  	long double transfers_per_second, transfers_per_second_read;
+	long double transfers_per_second_write;
+	long double kb_per_transfer, mb_per_second, mb_per_second_read;
+	long double mb_per_second_write;
+	u_int64_t total_bytes, total_transfers, total_blocks;
+	u_int64_t total_bytes_read, total_transfers_read;
+	u_int64_t total_bytes_write, total_transfers_write;
+	long double busy_pct, busy_time;
+	u_int64_t queue_len;
+	long double blocks_per_second, total_duration;
+	long double ms_per_other, ms_per_read, ms_per_write, ms_per_transaction;
+	char *devicename;
 
+	cur.dinfo = (struct devinfo *)calloc(1, sizeof(struct devinfo));
+	if(cur.dinfo == NULL) {
+		log_message(LOG_ERR, "Could not allocate memory for device info.");
+		return;
+	}
+  
+	if (devstat_getdevs(NULL, &cur) == -1){
+		log_message(LOG_ERR, "Could not get devices.");
+		free(cur.dinfo);
+		return;
+	}
+  
+	num_devices = cur.dinfo->numdevs;
+      
+    for (dn = 0; dn < num_devices; dn++) {		
+		if (asprintf(&devicename, "%s%d", 
+			cur.dinfo->devices[dn].device_name,
+			cur.dinfo->devices[dn].unit_number) == -1) {
+				log_message(LOG_ERR, "Could not format device name.");
+				continue;
+		}
+				
+		if (devstat_compute_statistics(&cur.dinfo->devices[dn],
+		    NULL, 0,
+		    DSM_TOTAL_BYTES, &total_bytes,
+		    DSM_TOTAL_BYTES_READ, &total_bytes_read,
+		    DSM_TOTAL_BYTES_WRITE, &total_bytes_write,
+		    DSM_TOTAL_TRANSFERS, &total_transfers,
+		    DSM_TOTAL_TRANSFERS_READ, &total_transfers_read,
+		    DSM_TOTAL_TRANSFERS_WRITE, &total_transfers_write,
+		    DSM_TOTAL_BLOCKS, &total_blocks,
+		    DSM_KB_PER_TRANSFER, &kb_per_transfer,
+		    DSM_TRANSFERS_PER_SECOND, &transfers_per_second,
+		    DSM_TRANSFERS_PER_SECOND_READ, &transfers_per_second_read,
+		    DSM_TRANSFERS_PER_SECOND_WRITE, &transfers_per_second_write,
+		    DSM_MB_PER_SECOND, &mb_per_second,
+		    DSM_MB_PER_SECOND_READ, &mb_per_second_read,
+		    DSM_MB_PER_SECOND_WRITE, &mb_per_second_write,
+		    DSM_BLOCKS_PER_SECOND, &blocks_per_second,
+		    DSM_MS_PER_TRANSACTION, &ms_per_transaction,
+		    DSM_MS_PER_TRANSACTION_READ, &ms_per_read,
+		    DSM_MS_PER_TRANSACTION_WRITE, &ms_per_write,
+		    DSM_MS_PER_TRANSACTION_OTHER, &ms_per_other,
+		    DSM_BUSY_PCT, &busy_pct,
+		    DSM_QUEUE_LENGTH, &queue_len,
+		    DSM_TOTAL_DURATION, &total_duration,
+		    DSM_TOTAL_BUSY_TIME, &busy_time,
+		    DSM_NONE) != 0) {
+				log_message(LOG_ERR, "Could not get device statistics.");
+				continue;
+		}
+		
+		if(total_bytes_read>0 || total_bytes_write > 0) {
+			print_disk_io_metric(devicename, total_bytes_read, total_bytes_write);
+		}		
+		free(devicename);
+	}
+	free(cur.dinfo);
 }
 
 void log_message(int priority, const char* message) {

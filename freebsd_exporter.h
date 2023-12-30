@@ -23,17 +23,17 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#ifndef NETBSD_EXPORTER_H
-#define NETBSD_EXPORTER_H
+#ifndef FREEBSD_EXPORTER_H
+#define FREEBSD_EXPORTER_H
 
-const char *program_name = "netbsd_exporter";
+const char *program_name = "freebsd_exporter";
 
 int option_http_header = 1;
 int option_syslog = 1;
 
 void print_filesystem_metric(const char*, const char*, const char*, const char*, long );
 
-void print_disk_io_metric(const char*, long long unsigned int, long long unsigned int );
+void print_disk_io_metric(const char*, u_int64_t, u_int64_t );
 
 void print_load_metric(const char*, double );
 

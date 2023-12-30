@@ -1,11 +1,11 @@
-.Dd May 26, 2023
-.Dt NETBSD_EXPORTER 8
+.Dd December 30, 2023
+.Dt FREEBSD_EXPORTER 8
 .Os
 .Sh NAME
-.Nm netbsd_exporter
+.Nm freebsd_exporter
 .Nd system metrics exporter for Prometheus
 .Sh SYNOPSIS
-.Nm netbsd_exporter
+.Nm freebsd_exporter
 .Op Fl Fl no-http-header
 .Op Fl Fl no-syslog
 .Op Fl Fl version
@@ -14,7 +14,7 @@
 is a Prometheus compatible exporter for system metrics such as disk I/O,
 network I/O, RAM and filesystem usage, as well as CPU load.
 It is designed to be lightweight and
-.Nx Ns No -focused .
+.Fx Ns No -focused .
 .Pp
 .Nm
 can be served by
